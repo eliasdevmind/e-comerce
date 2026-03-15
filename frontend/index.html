@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GameShop - E-commerce de Games</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header/Navigation -->
+    <header>
+      <nav>
+        <div class="logo" @click="currentPage = 'home'" style="cursor: pointer;">🎮 GameShop</div>
+        <ul class="nav-links">
+          <li><a @click="currentPage = 'home'" :class="{ active: currentPage === 'home' }">Loja</a></li>
+          <li><a @click="currentPage = 'cart'" :class="{ active: currentPage === 'cart' }">Carrinho</a></li>
+          <li v-if="user && user.role === 'admin'"><a @click="goToPage('admin')" :class="{ active: currentPage === 'admin' }">Admin</a></li>
+        </ul>
+        <div class="nav-right">
+          <div class="cart-icon" @click="currentPage = 'cart'">
+            🛒
+            <span class="cart-count" v-if="cartCount > 0">{{ cartCount }}</span>
+          </div>
+          <div>
+            <a v-if="!token" @click="currentPage = 'auth'; authMode = 'login'" class="btn btn-primary">Login</a>
+            <a v-else @click="currentPage = 'profile'" class="btn btn-outline">{{ user?.name }}</a>
+            <a v-if="token" @click="logout()" class="btn btn-outline" style="margin-left: 0.5rem;">Sair</a>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <!-- Messages -->
+    <div class="container" v-if="message">
+      <div :class="['alert', `alert-${messageType}`]">{{ message }}</div>
+    </div>
+
+    <!-- Home Page -->
+    <div v-if="currentPage === 'home'" class="page active">
+      <div class="hero">
+        <h1>🎮 Bem-vindo ao GameShop</h1>
+        <p>Os melhores games com os melhores preços</p>
+        <div style="display: flex; gap: 1rem; justify-content: center;">
+          <input v-model="searchQuery" @input="loadProducts()" type="text" placeholder="Buscar games..." style="max-width: 300px; padding: 0.75rem;">
+          <button @click="loadProducts()" class="btn btn-secondary">Buscar</button>
+        </div>
+      </div>
+
+      <div class="container">
+        <div style="margin-bottom: 2rem;">
+          <h3>Categorias:</h3>
+          <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1rem;">
+            <button @click="selectedCategory = 'all'; loadProducts();" 
+                    :class="['btn', selectedCategory === 'all' ? 'btn-primary' : 'btn-outline']">
+              Todos
+            </button>
+            <button v-for="cat in [1, 2, 3, 4, 5, 6]" :key="cat"
+                    @click="selectedCategory = cat; loadProducts();"
+                    :class="['btn', selectedCategory == cat ? 'btn-primary' : 'btn-outline']">
+              Categoria {{ cat }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="loading" class="text-center">
+          <div class="loading"></div>
+        </div>
+
+        <div v-else class="products-grid">
+          <div v-for="product in filteredProducts" :key="product.id" class="product-card">
+            <img :src="product.cover_image || 'https://via.placeholder.com/250x200?text=Game'" :alt="product.name" class="product-image">
+            <div class="product-info">
+              <div class="product-name">{{ product.name }}</div>
+              <div class="rating">⭐ {{ product.rating || 'N/A' }}</div>
+              <div class="product-price">
+                <span class="price">{{ formatPrice(product.discount_price || product.price) }}</span>
+                <span v-if="product.discount_price" class="old-price">{{ formatPrice(product.price) }}</span>
+              </div>
+              <button @click="viewProduct(product)" class="btn-add-cart">Ver Detalhes</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Auth Page -->
+    <div v-if="currentPage === 'auth'" class="page active">
+      <div class="form-container">
+        <h2>{{ authMode === 'login' ? 'Login' : 'Cadastro' }}</h2>
+        
+        <div class="form-group" v-if="authMode === 'register'">
+          <label>Nome</label>
+          <input v-model="formData.name" type="text" placeholder="Seu nome">
+        </div>
+        
+        <div class="form-group">
+          <label>Email</label>
+          <input v-model="formData.email" type="email" placeholder="seu@email.com">
+        </div>
+        
+        <div class="form-group">
+          <label>Senha</label>
+          <input v-model="formData.password" type="password" placeholder="••••••••">
+        </div>
+        
+        <button @click="authMode === 'login' ? login() : register()" class="btn btn-primary" style="width: 100%; padding: 0.75rem; font-size: 1rem;">
+          {{ authMode === 'login' ? 'Entrar' : 'Cadastrar' }}
+        </button>
+        
+        <div class="form-footer" style="margin-top: 1.5rem;">
+          <span v-if="authMode === 'login'">Não tem conta? <a @click="authMode = 'register'">Cadastre-se</a></span>
+          <span v-else>Já tem conta? <a @click="authMode = 'login'">Faça login</a></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Product Detail Page -->
+    <div v-if="currentPage === 'product-detail' && selectedProduct" class="page active">
+      <div class="container">
+        <button @click="currentPage = 'home'" class="btn btn-outline" style="margin-bottom: 1rem;">← Voltar</button>
+        
+        <div class="product-detail">
+          <div class="product-images">
+            <img :src="selectedProduct.cover_image || 'https://via.placeholder.com/400'" :alt="selectedProduct.name" class="main-image">
+            <div class="thumbnail-gallery">
+              <img v-for="img in selectedProduct.images" :key="img.id" :src="img.image_url" :alt="img.alt_text" class="thumbnail">
+            </div>
+          </div>
+          
+          <div class="product-details">
+            <h1>{{ selectedProduct.name }}</h1>
+            
+            <div class="product-meta">
+              <div class="meta-item">
+                <span class="meta-label">Desenvolvedora:</span>
+                <span>{{ selectedProduct.developer || 'N/A' }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Plataforma:</span>
+                <span>{{ selectedProduct.platform || 'Multi-plataforma' }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Avaliação:</span>
+                <span class="rating">⭐ {{ selectedProduct.rating || 'Sem avaliações' }}</span>
+              </div>
+            </div>
+            
+            <div class="product-price" style="font-size: 2rem;">
+              <span class="price">{{ formatPrice(selectedProduct.discount_price || selectedProduct.price) }}</span>
+              <span v-if="selectedProduct.discount_price" class="old-price">{{ formatPrice(selectedProduct.price) }}</span>
+            </div>
+            
+            <div class="quantity-selector">
+              <button class="quantity-btn" @click="quantity = Math.max(1, quantity - 1)">-</button>
+              <input v-model.number="quantity" type="number" min="1" max="100" class="quantity-input">
+              <button class="quantity-btn" @click="quantity++">+</button>
+            </div>
+            
+            <button @click="addToCart()" class="btn btn-primary" style="padding: 1rem; font-size: 1.1rem; width: 100%;">
+              🛒 Adicionar ao Carrinho
+            </button>
+            
+            <h3 style="margin-top: 2rem;">Descrição</h3>
+            <p>{{ selectedProduct.description }}</p>
+          </div>
+        </div>
+
+        <!-- Reviews Section -->
+        <div class="reviews-section">
+          <h3>Comentários & Avaliações</h3>
+          
+          <div v-if="token" class="review-form">
+            <h4>Deixe sua avaliação:</h4>
+            <div class="form-group">
+              <label>Classificação:</label>
+              <select v-model.number="newReview.rating">
+                <option value="1">⭐ Péssimo</option>
+                <option value="2">⭐⭐ Ruim</option>
+                <option value="3">⭐⭐⭐ OK</option>
+                <option value="4">⭐⭐⭐⭐ Bom</option>
+                <option value="5">⭐⭐⭐⭐⭐ Excelente</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Título:</label>
+              <input v-model="newReview.title" type="text" placeholder="Resumo da sua opinião">
+            </div>
+            <div class="form-group">
+              <label>Comentário:</label>
+              <textarea v-model="newReview.comment" placeholder="Compartilhe sua experiência..."></textarea>
+            </div>
+            <button @click="submitReview()" class="btn btn-primary">Enviar Avaliação</button>
+          </div>
+
+          <div v-if="reviews.length === 0" class="text-center text-muted" style="padding: 2rem;">
+            Sem comentários ainda. Seja o primeiro!
+          </div>
+
+          <div v-for="review in reviews" :key="review.id" class="review-item">
+            <div class="review-header">
+              <span class="review-author">{{ review.name }}</span>
+              <span class="review-date">{{ new Date(review.created_at).toLocaleDateString('pt-BR') }}</span>
+            </div>
+            <div class="review-rating">{{ '⭐'.repeat(review.rating) }}</div>
+            <h4>{{ review.title }}</h4>
+            <p>{{ review.comment }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cart Page -->
+    <div v-if="currentPage === 'cart'" class="page active">
+      <div class="container">
+        <h2>Carrinho de Compras</h2>
+        
+        <div v-if="cartItems.length === 0" class="text-center" style="padding: 3rem;">
+          <p style="font-size: 1.5rem; color: #999;">Seu carrinho está vazio 🛒</p>
+          <button @click="currentPage = 'home'" class="btn btn-primary" style="margin-top: 1rem;">Continuar Comprando</button>
+        </div>
+
+        <div v-else class="cart-container">
+          <div class="cart-items">
+            <div v-for="item in cartItems" :key="item.id" class="cart-item">
+              <img :src="item.cover_image" :alt="item.name" class="cart-image">
+              <div class="cart-details">
+                <h3>{{ item.name }}</h3>
+                <p class="text-muted">{{ formatPrice(item.discount_price || item.price) }}</p>
+                <div class="quantity-selector" style="margin-top: 0.5rem;">
+                  <button class="quantity-btn" @click="updateCartItem(item.id, Math.max(1, item.quantity - 1))">-</button>
+                  <span style="width: 50px; text-align: center;">{{ item.quantity }}</span>
+                  <button class="quantity-btn" @click="updateCartItem(item.id, item.quantity + 1)">+</button>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-weight: bold;">{{ formatPrice((item.discount_price || item.price) * item.quantity) }}</div>
+                <button @click="removeFromCart(item.id)" class="btn btn-outline" style="margin-top: 0.5rem; padding: 0.5rem;">Remover</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="cart-summary">
+            <h3>Resumo do Pedido</h3>
+            <div class="summary-row">
+              <span>Subtotal:</span>
+              <span>{{ formatPrice(cartItems.reduce((sum, item) => sum + (item.discount_price || item.price) * item.quantity, 0)) }}</span>
+            </div>
+            <div class="summary-row">
+              <span>Imposto (10%):</span>
+              <span>{{ formatPrice(cartItems.reduce((sum, item) => sum + (item.discount_price || item.price) * item.quantity, 0) * 0.1) }}</span>
+            </div>
+            <div class="summary-row">
+              <span>Frete:</span>
+              <span>R$ {{ cartItems.reduce((sum, item) => sum + (item.discount_price || item.price) * item.quantity, 0) > 100 ? '0,00' : '10,00' }}</span>
+            </div>
+            <div class="summary-row total">
+              <span>Total:</span>
+              <span>{{ formatPrice(cartItems.reduce((sum, item) => sum + (item.discount_price || item.price) * item.quantity, 0) * 1.1 + (cartItems.reduce((sum, item) => sum + (item.discount_price || item.price) * item.quantity, 0) > 100 ? 0 : 10)) }}</span>
+            </div>
+            <button @click="checkout()" class="btn btn-primary" style="width: 100%; padding: 1rem; margin-top: 1rem; font-size: 1.1rem;">
+              Finalizar Compra
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Checkout Page -->
+    <div v-if="currentPage === 'checkout'" class="page active">
+      <div class="container" style="max-width: 600px; margin: 3rem auto;">
+        <h2>Pagamento</h2>
+        <div style="background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+          <div style="text-align: center; margin-bottom: 2rem;">
+            <p style="font-size: 1.5rem; margin-bottom: 1rem;">✅ Pedido criado com sucesso!</p>
+          </div>
+          
+          <h3>Informações de Pagamento</h3>
+          <div class="form-group" style="margin-top: 1.5rem;">
+            <label>Número do Cartão</label>
+            <input type="text" placeholder="1234 5678 9012 3456" maxlength="19">
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+              <label>Validade</label>
+              <input type="text" placeholder="MM/AA">
+            </div>
+            <div class="form-group">
+              <label>CVV</label>
+              <input type="text" placeholder="123" maxlength="3">
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>Nome no Cartão</label>
+            <input type="text" placeholder="Seu Nome">
+          </div>
+          
+          <button @click="showMessage('Pagamento simulado com sucesso!', 'success'); currentPage = 'home'; cartItems = [];" 
+                  class="btn btn-primary" style="width: 100%; padding: 1rem; font-size: 1.1rem;">
+            Processar Pagamento
+          </button>
+          
+          <button @click="currentPage = 'home'" class="btn btn-outline" style="width: 100%; padding: 1rem; margin-top: 1rem;">
+            Voltar para a Loja
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin Panel -->
+    <div v-if="currentPage === 'admin'" class="page active">
+      <div class="container">
+        <div class="admin-panel">
+          <div class="admin-sidebar">
+            <ul class="admin-menu">
+              <li><a @click="loadAdminProducts(); adminContent = 'products'">Produtos</a></li>
+              <li><a @click="loadAdminOrders(); adminContent = 'orders'">Pedidos</a></li>
+            </ul>
+          </div>
+          
+          <div class="admin-content">
+            <!-- Products Admin -->
+            <div v-if="!adminContent || adminContent === 'products'">
+              <h2>Gerenciar Produtos</h2>
+              
+              <div style="background: #f3f4f6; padding: 1.5rem; border-radius: 0.75rem; margin-bottom: 2rem;">
+                <h3>Novo/Editar Produto</h3>
+                <div class="form-group">
+                  <label>Nome</label>
+                  <input v-model="newProduct.name" type="text">
+                </div>
+                <div class="form-group">
+                  <label>Descrição</label>
+                  <textarea v-model="newProduct.description"></textarea>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                  <div class="form-group">
+                    <label>Preço</label>
+                    <input v-model.number="newProduct.price" type="number" step="0.01">
+                  </div>
+                  <div class="form-group">
+                    <label>Preço Desconto</label>
+                    <input v-model.number="newProduct.discount_price" type="number" step="0.01">
+                  </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                  <div class="form-group">
+                    <label>Plataforma</label>
+                    <input v-model="newProduct.platform" type="text" placeholder="PS5, Xbox, PC...">
+                  </div>
+                  <div class="form-group">
+                    <label>Categoria</label>
+                    <select v-model.number="newProduct.category_id">
+                      <option v-for="n in 6" :key="n" :value="n">Categoria {{ n }}</option>
+                    </select>
+                  </div>
+                </div>
+                <button @click="saveProduct()" class="btn btn-primary">Salvar Produto</button>
+              </div>
+              
+              <h3>Produtos Cadastrados</h3>
+              <div class="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nome</th>
+                      <th>Preço</th>
+                      <th>Categoria</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="product in adminProducts" :key="product.id">
+                      <td>{{ product.name }}</td>
+                      <td>{{ formatPrice(product.price) }}</td>
+                      <td>Cat. {{ product.category_id }}</td>
+                      <td>
+                        <button @click="editingProduct = product; Object.assign(newProduct, product)" class="btn btn-outline" style="padding: 0.5rem;">Editar</button>
+                        <button @click="deleteProduct(product.id)" class="btn btn-outline" style="padding: 0.5rem; margin-left: 0.5rem;">Deletar</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Orders Admin -->
+            <div v-if="adminContent === 'orders'">
+              <h2>Pedidos</h2>
+              <div class="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Pedido</th>
+                      <th>Cliente</th>
+                      <th>Total</th>
+                      <th>Status</th>
+                      <th>Pagamento</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="order in adminOrders" :key="order.id">
+                      <td>{{ order.order_number }}</td>
+                      <td>{{ order.name }}</td>
+                      <td>{{ formatPrice(order.total_amount) }}</td>
+                      <td><span :class="['badge', `badge-${getStatusBadge(order.status)}`]">{{ order.status }}</span></td>
+                      <td><span :class="['badge', `badge-${getStatusBadge(order.payment_status)}`]">{{ order.payment_status }}</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="assets/api.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

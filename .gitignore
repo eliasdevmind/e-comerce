@@ -1,0 +1,71 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Uploads
+uploads/
+dist/
+build/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Database backups
+*.sql.bak
+database_backup/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+push-github.bat
+push-github.sh
+
+# Sensitive files
+secrets/
+keys/
+*.key
+*.pem
+*.crt
+*.p12
+config/secrets.json
+config/private/
+*.secret
+
+# Additional Node.js
+.npm/
+.node_repl_history
+.eslintcache
+.nyc_output/
+coverage/
+*.tgz
+*.tar.gz
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock

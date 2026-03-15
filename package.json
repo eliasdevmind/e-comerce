@@ -1,0 +1,36 @@
+{
+  "name": "e-comerce-games",
+  "version": "1.0.0",
+  "description": "Plataforma profissional de e-commerce para venda de games com integração Mercado Pago, Dark Mode, Analytics e Painel Admin",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "node backend/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ecommerce",
+    "games",
+    "mercadopago",
+    "vue",
+    "express",
+    "mysql"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@mercadopago/sdk-js": "^0.0.3",
+    "axios": "^1.13.6",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mercadopago": "^2.12.0",
+    "multer": "^2.1.1",
+    "mysql2": "^3.19.1",
+    "uuid": "^13.0.0",
+    "vue": "^3.5.30"
+  }
+}
